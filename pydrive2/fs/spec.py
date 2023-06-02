@@ -7,10 +7,10 @@ import posixpath
 import threading
 from collections import defaultdict
 from contextlib import contextmanager
+from itertools import chain
 
 from fsspec.spec import AbstractFileSystem
 from funcy import cached_property, retry, wrap_prop, wrap_with
-from funcy.py3 import cat
 from tqdm.utils import CallbackIOWrapper
 
 from pydrive2.drive import GoogleDrive
@@ -314,7 +314,7 @@ class GDriveFileSystem(AbstractFileSystem):
         get_list = _gdrive_retry(lambda: next(file_list, None))
 
         # Fetch pages until None is received, lazily flatten the thing.
-        return cat(iter(get_list, None))
+        return chain.from_iterable(iter(get_list, None))
 
     def _gdrive_list_ids(self, query_ids):
         query = " or ".join(
@@ -449,11 +449,12 @@ class GDriveFileSystem(AbstractFileSystem):
                     }
                 )
             else:
+                size = item.get("fileSize")
                 contents.append(
                     {
                         "type": "file",
                         "name": item_path,
-                        "size": int(item["fileSize"]),
+                        "size": int(size) if size is not None else size,
                         "checksum": item.get("md5Checksum"),
                     }
                 )
@@ -493,12 +494,12 @@ class GDriveFileSystem(AbstractFileSystem):
                     new_query_ids[item["id"]] = item_path
                     self._cache_path_id(item_path, item["id"])
                     continue
-
+                size = item.get("fileSize")
                 contents.append(
                     {
                         "name": posixpath.join(bucket, item_path),
                         "type": "file",
-                        "size": int(item["fileSize"]),
+                        "size": int(size) if size is not None else size,
                         "checksum": item.get("md5Checksum"),
                     }
                 )
@@ -544,7 +545,6 @@ class GDriveFileSystem(AbstractFileSystem):
 
     @_gdrive_retry
     def mv(self, path1, path2, maxdepth=None, **kwargs):
-
         if maxdepth is not None:
             raise NotImplementedError("Max depth move is not supported")
 

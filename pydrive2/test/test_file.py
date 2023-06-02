@@ -129,13 +129,13 @@ class GoogleDriveFileTest(unittest.TestCase):
     def test_Files_Insert_Content_File(self):
         drive = GoogleDrive(self.ga)
         file1 = drive.CreateFile()
-        filename = self.getTempFile("filecontent")
-        file1["title"] = filename
         contentFile = self.getTempFile("actual_content", "some string")
         file1.SetContentFile(contentFile)
         pydrive_retry(file1.Upload)  # Files.insert
 
-        self.assertEqual(file1.metadata["title"], filename)
+        self.assertEqual(
+            file1.metadata["title"], os.path.basename(contentFile)
+        )
         pydrive_retry(
             file1.FetchContent
         )  # Force download and double check content.
@@ -261,6 +261,26 @@ class GoogleDriveFileTest(unittest.TestCase):
         fileOut = self.getTempFile()
         pydrive_retry(file1.GetContentFile, fileOut)
         self.assertEqual(filecmp.cmp(contentFile2, fileOut), True)
+
+        self.DeleteUploadedFiles(drive, [file1["id"]])
+
+    def test_Files_Update_File_Keeps_Filename(self):
+        # Tests https://github.com/iterative/PyDrive2/issues/272
+        drive = GoogleDrive(self.ga)
+        file1 = drive.CreateFile()
+        filename = self.getTempFile("preupdatetestfile")
+        contentFile = self.getTempFile("actual_content", "some string")
+        contentFile2 = self.getTempFile("actual_content_2", "some string")
+
+        file1["title"] = filename
+        file1.SetContentFile(contentFile)
+        pydrive_retry(file1.Upload)  # Files.insert
+        self.assertEqual(file1.metadata["title"], filename)
+
+        same_file = drive.CreateFile({"id": file1["id"]})
+        same_file.SetContentFile(contentFile2)
+        pydrive_retry(same_file.Upload)  # Files.update
+        self.assertEqual(same_file.metadata["title"], filename)
 
         self.DeleteUploadedFiles(drive, [file1["id"]])
 
