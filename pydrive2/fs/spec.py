@@ -434,7 +434,9 @@ class GDriveFileSystem(AbstractFileSystem):
             dir_ids = self._path_to_item_ids(base)
 
         if not dir_ids:
-            return None
+            raise FileNotFoundError(
+                errno.ENOENT, os.strerror(errno.ENOENT), path
+            )
 
         root_path = posixpath.join(bucket, base)
         contents = []
@@ -471,6 +473,11 @@ class GDriveFileSystem(AbstractFileSystem):
         bucket, base = self.split_path(path)
 
         seen_paths = set()
+        cached = base in self._ids_cache["dirs"]
+        if not cached:
+            dir_ids = self._path_to_item_ids(base)
+            self._cache_path_id(base, *dir_ids)
+
         dir_ids = [self._ids_cache["ids"].copy()]
         contents = []
         while dir_ids:
